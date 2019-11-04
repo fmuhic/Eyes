@@ -23,10 +23,10 @@ class Circle {
 }
 
 class Eye {
-    constructor(position, radius) {
+    constructor(position, radius, color) {
         this.position = position;
         this.radius = radius;
-        this.eyeball = new Circle(position, radius, "red");
+        this.eyeball = new Circle(position, radius, color);
 
         this.follow(new V2(0, 0));
     }
@@ -65,11 +65,16 @@ class EyeFactory {
         this.canvasHeight = canvasHeight;
     }
 
-    generateEyes(eyeCount, canvasWidth, canvasHeight) {
+    generateEyes(color) {
         let eyes = [];
         for(let i = 0; i < this.canvasWidth; i = i + 150) {
             for(let j = 0; j < this.canvasHeight; j = j + 150) {
-                eyes.push(new Eye(new V2(i + 160 * (Math.random() - 0.5), j + 160 * (Math.random() - 0.5)), 80 * Math.random() + 10));
+                eyes.push(
+                    new Eye(new V2(i + 160 * (Math.random() - 0.5), j + 160 * (Math.random() - 0.5)),
+                            80 * Math.random() + 10,
+                            color
+                    )
+                );
             }
         }
         return eyes;
@@ -79,6 +84,7 @@ class EyeFactory {
 class Renderer {
     constructor(context) {
         this.ctx = context;
+        this.cursorGarbage = [];
     }
 
     drawEye(eye) {
@@ -86,6 +92,27 @@ class Renderer {
         this.drawCircle(eye.pupil);
         this.drawCircle(eye.iris);
         this.drawCircle(eye.eyeReflection);
+    }
+
+    clearCursor(cursor) {
+        while(this.cursorGarbage.length) {
+            let circle = this.cursorGarbage.pop();
+            circle.color = '#ffffff';
+            circle.radius += 1;
+            this.drawCircle(circle);
+        }
+    }
+
+    drawCursor(cursor) {
+        for(let i = 0; i < cursor.positionHistory.length; i++) {
+            let circle = new Circle(
+                cursor.positionHistory[i],
+                0 + i * (cursor.radius / cursor.positionHistory.length),
+                cursor.color
+            );
+            this.cursorGarbage.push(circle);
+            this.drawCircle(circle);
+        }
     }
 
     drawCircle(circle) {
@@ -99,6 +126,22 @@ class Renderer {
     }
 }
 
+class Cursor {
+    constructor(trailSize, radius, color) {
+        this.positionHistory = [];
+        this.garbage = [];
+        this.trailSize = trailSize;
+        this.radius = radius;
+        this.color = color;
+    }
+
+    follow(latestPosition) {
+        if(this.positionHistory.length >= this.trailSize)
+            this.garbage.push(this.positionHistory.shift());
+        this.positionHistory.push(latestPosition);
+    }
+}
+
 window.onload = () => {
     let canvas = document.getElementById("game_board");
     let ctx = canvas.getContext("2d");
@@ -107,12 +150,17 @@ window.onload = () => {
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
     const renderer = new Renderer(ctx);
-    let eyeFactory = new EyeFactory(ctx.canvas.width, ctx.canvas.height);
-    let eyes = eyeFactory.generateEyes();
+    const eyeFactory = new EyeFactory(ctx.canvas.width, ctx.canvas.height);
+    const eyes = eyeFactory.generateEyes('#CC0000');
+    const cursor = new Cursor(10, 15, '#3498DB');
 
     canvas.addEventListener('mousemove',(e) => {
         let mousePosition = new V2(e.offsetX, ctx.canvas.height - e.offsetY);
+        cursor.follow(mousePosition);
         eyes.map(e => e.follow(mousePosition));
+
+        renderer.clearCursor(cursor);
         eyes.map(e => renderer.drawEye(e));
+        renderer.drawCursor(cursor);
     });
 }
